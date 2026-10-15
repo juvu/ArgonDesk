@@ -1,0 +1,45 @@
+name: Windows checks and packages
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24.18.0'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Scoped file tools
+        run: |
+          npm test
+          if ($LASTEXITCODE) { throw 'File-tool tests failed.' }
+      - name: Credential and lifecycle checks
+        run: |
+          node tests/tunnel.mjs
+          if ($LASTEXITCODE) { throw 'Credential tests failed.' }
+          node tests/tunnel-lifecycle.mjs
+          if ($LASTEXITCODE) { throw 'Lifecycle tests failed.' }
+      - name: Compile and package
+        run: |
+          .\Build.ps1
+          New-Item -ItemType Directory -Path '.local\bin' -Force | Out-Null
+          Copy-Item -LiteralPath (Get-Command node.exe).Source -Destination '.local\bin\node.exe'
+          .\Pack.ps1
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: ArgonDesk-Windows-x64
+          path: dist/*
+          if-no-files-found: error
