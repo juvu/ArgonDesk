@@ -1,0 +1,14 @@
+node_modules/
+.local/
+dist/
+.env
+.env.*
+*.log
+*.encrypted
+*.zip
+*.pfx
+*.key
+config.json
+running.json
+tunnel-runtime.json
+ArgonDesk.exe
