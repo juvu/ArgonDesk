@@ -52,4 +52,4 @@ Tunnel online, MCP handshake and tools/list alone do not prove model file access
 
 Open ArgonDesk, check the tunnel, choose the folder and enable access. Switching folders needs no app re-registration. Use Preferences to change the local UI language; the website language is separate.
 
-Closing the window leaves the service in the tray. Use the power button or tray Stop service and quit to end both file service and tunnel. Restarting begins paused. Before replacing files for an update, stop the old instance; retain private state locally and never include it in a bug report or source commit.
+Closing the window leaves the service in the tray. Use the power button or tray Stop service and quit to end both file service and tunnel. Restarting defaults to paused; Preferences can opt into startup access with the saved folder and permission. Invalid roots remain paused. Before replacing files for an update, stop the old instance; retain private state locally and never include it in a bug report or source commit.

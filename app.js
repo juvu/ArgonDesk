@@ -92,6 +92,7 @@ function render() {
   element('folder-name').textContent = folder; element('sidebar-folder').textContent = folder;
   element('root').textContent = state.workspace; element('root').title = state.workspace; element('access').value = state.access;
   element('status-text').textContent = text(state.enabled ? 'enabled' : 'paused');
+  element('file-auto-start').checked = state.fileAutoStart === true;
   element('enabled-description').textContent = text(state.enabled ? 'enabledHelp' : 'pausedHelp');
   element('access-state').classList.toggle('enabled', state.enabled);
   element('toggle').lastElementChild.textContent = text(state.enabled ? 'pause' : 'enable');
@@ -158,6 +159,9 @@ document.querySelectorAll('[data-preferences]').forEach(node => node.addEventLis
 element('preferences-close').onclick = () => element('preferences-dialog').close();
 element('language').addEventListener('change', event => perform('language', async () => {
   await api('preferences', { language: event.target.value });
+}));
+element('file-auto-start').addEventListener('change', event => perform('file-auto-start', async () => {
+  await api('preferences', { fileAutoStart: event.target.checked });
 }));
 document.querySelectorAll('[data-filter]').forEach(node => node.addEventListener('click', () => {
   activityFilter = node.dataset.filter;

@@ -22,8 +22,13 @@ let config = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 
 };
 if (!fs.existsSync(configPath)) fs.mkdirSync(config.root, { recursive: true });
 const save = value => { fs.writeFileSync(configPath + '.tmp', JSON.stringify(value, null, 2)); fs.renameSync(configPath + '.tmp', configPath); config = value; };
-save({ ...config, enabled: false });
 const files = new WorkspaceFiles(config, save);
+let enableOnStart = false;
+if (config.fileAutoStart === true && ['read', 'edit'].includes(config.access)) {
+  try { files.resolve('.'); enableOnStart = true; } catch {}
+}
+save({ ...config, fileAutoStart: config.fileAutoStart === true, enabled: enableOnStart, workspaceId: crypto.randomUUID() });
+files.config = config;
 const port = Number(process.env.GEMINI_WORKSPACE_PORT || 3008);
 const origin = `http://127.0.0.1:${port}`;
 const csrf = crypto.randomBytes(32).toString('hex');
@@ -47,7 +52,7 @@ app.use((req, res, next) => {
   if (req.method !== 'GET' && req.get('x-workspace-csrf') !== csrf) return res.sendStatus(403);
   next();
 });
-app.get('/healthz', (_req, res) => res.json({ app: 'gemini-workspace', version: '0.4.1', language: config.language || 'zh-CN', ready: true, pid: process.pid }));
+app.get('/healthz', (_req, res) => res.json({ app: 'gemini-workspace', version: '0.4.2', language: config.language || 'zh-CN', ready: true, pid: process.pid }));
 app.get('/', (_req, res) => {
   res.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'");
   res.sendFile(path.join(base, 'index.html'));
@@ -56,11 +61,19 @@ app.get('/app.js', (_req, res) => res.sendFile(path.join(base, 'app.js')));
 app.get('/i18n.js', (_req, res) => res.sendFile(path.join(base, 'i18n.js')));
 app.get('/style.css', (_req, res) => res.sendFile(path.join(base, 'style.css')));
 app.get('/app-icon.svg', (_req, res) => res.sendFile(path.join(base, 'app-icon.svg')));
-app.get('/api/state', (_req, res) => res.json({ ...files.info(), version: '0.4.1', language: config.language || 'zh-CN', publicBase: config.publicBase, csrf, localMcp: `${origin}/mcp/${config.key}`,
+app.get('/api/state', (_req, res) => res.json({ ...files.info(), version: '0.4.2', language: config.language || 'zh-CN', fileAutoStart: config.fileAutoStart, publicBase: config.publicBase, csrf, localMcp: `${origin}/mcp/${config.key}`,
   publicMcp: config.publicBase ? `${config.publicBase}/mcp/${config.key}` : '', history, tunnel: tunnel.info(), traffic }));
 app.post('/api/preferences', (req, res) => {
-  if (!['zh-CN', 'en'].includes(req.body.language)) return res.status(400).json({ error: '语言设置无效。' });
-  update({ language: req.body.language }); res.json({ ok: true });
+  const changes = {};
+  if (req.body.language !== undefined) {
+    if (!['zh-CN', 'en'].includes(req.body.language)) return res.status(400).json({ error: '语言设置无效。' });
+    changes.language = req.body.language;
+  }
+  if (req.body.fileAutoStart !== undefined) {
+    if (typeof req.body.fileAutoStart !== 'boolean') return res.status(400).json({ error: '自动启用设置无效。' });
+    changes.fileAutoStart = req.body.fileAutoStart;
+  }
+  update(changes); res.json({ ok: true });
 });
 app.post('/api/settings', (req, res) => {
   try {
@@ -105,7 +118,7 @@ app.post('/api/connection/rotate-key', async (_req, res) => {
   res.json({ ok: true });
 });
 app.post('/api/diagnostics', async (_req, res) => {
-  const client = new Client({ name: 'ArgonDesk-local-check', version: '0.4.1' });
+  const client = new Client({ name: 'ArgonDesk-local-check', version: '0.4.2' });
   try {
     await client.connect(new StreamableHTTPClientTransport(new URL(`${origin}/mcp/${config.key}`)));
     const tools = (await client.listTools()).tools;
@@ -122,18 +135,20 @@ app.post('/api/diagnostics', async (_req, res) => {
 });
 app.post('/api/shutdown', async (_req, res) => { update({ enabled: false }); await tunnel.stop(); res.json({ ok: true }); setTimeout(() => process.exit(0), 100); });
 
-const bound = { workspace_id: z.string().describe('从 workspace_info 获取的当前工作区编号') };
-const relative = z.string().describe('工作区内的相对路径；禁止绝对路径和父目录');
+const bound = { workspace_id: z.string().describe('Current ID from workspace_info.') };
+const relative = z.string().describe('Path relative to the selected folder; no absolute paths or parent traversal.');
 const definitions = [
-  ['workspace_info', '查询用户在本地选择的工作区及当前权限。每次新任务和切换目录后先查询。', {}],
-  ['list_files', '列举当前工作区内某个文件夹。', { ...bound, path: relative.default('.') }],
-  ['read_file', '按行读取工作区内的 UTF-8 文本文件。', { ...bound, path: relative, offset: z.number().int().min(0).default(0), lines: z.number().int().min(1).max(1000).default(200) }],
-  ['write_file', '在工作区内创建、覆写或追加 UTF-8 文本。', { ...bound, path: relative, content: z.string(), mode: z.enum(['rewrite', 'append']).default('rewrite') }],
-  ['edit_file', '精确编辑一个文件。优先将多处修改合并到 edits 数组（最多50项），按顺序唯一匹配，全部成功后只写入一次，以减少工具请求和写入确认。兼容单次 old_text/new_text。Batch edits within one file; all changes are validated before writing.', { ...bound, path: relative, old_text: z.string().min(1).optional(), new_text: z.string().optional(), edits: z.array(z.object({ old_text: z.string().min(1), new_text: z.string() })).min(1).max(50).optional() }],
-  ['create_directory', '在工作区内创建文件夹。', { ...bound, path: relative }]
+  ['workspace_info', 'Get the selected folder, access and workspace_id once per task, then reuse the ID. For a new file, write_file(mode=create) can follow directly.', {}],
+  ['list_files', 'List a folder only when its contents are needed.', { ...bound, path: relative.default('.') }],
+  ['read_file', 'Read relevant UTF-8 lines of an existing file. Successful writes already confirm saving.', { ...bound, path: relative, offset: z.number().int().min(0).default(0), lines: z.number().int().min(1).max(1000).default(200) }],
+  ['write_file', 'Save complete UTF-8 content once, preserving animation and interactivity. create refuses existing files; rewrite replaces; append adds. Missing parent folders are created.', { ...bound, path: relative, content: z.string(), mode: z.enum(['create', 'rewrite', 'append']).default('rewrite') }],
+  ['edit_file', 'Batch up to 50 unique replacements in one file; all must match before writing. Use edits, or a single old_text/new_text pair.', { ...bound, path: relative, old_text: z.string().min(1).optional(), new_text: z.string().optional(), edits: z.array(z.object({ old_text: z.string().min(1), new_text: z.string() })).min(1).max(50).optional() }],
+  ['create_directory', 'Create a folder inside the workspace, including missing parents.', { ...bound, path: relative }]
 ];
 function makeServer(publicRequest = false) {
-  const server = new McpServer({ name: 'Gemini-Workspace', version: '0.4.1' });
+  const server = new McpServer({ name: 'ArgonDesk', version: '0.4.2' }, {
+    instructions: 'ArgonDesk is the user-selected local file connection, not a topic to research or install. Call workspace_info once per task or after an obsolete-ID error; reuse its ID. New file: write_file mode=create directly, without listing or reading unrelated files. Preserve requested detail, motion and interactivity. For action-scene SVGs such as cycling or playing instruments, prefer real animation unless a still is requested. Save complete content once. Verify only what the task needs; avoid full-file readback or repeating saved code in chat. Existing file: read relevant lines and batch edits. Report the path and whether animation is implemented; never claim a visual test without one.'
+  });
   for (const [name, description, inputSchema] of definitions) {
     const mutator = ['write_file', 'edit_file', 'create_directory'].includes(name);
     server.registerTool(name, { description, inputSchema,
@@ -143,7 +158,7 @@ function makeServer(publicRequest = false) {
         const value = files.run(name, args);
         if (publicRequest) traffic.lastToolAt = new Date().toISOString();
         record({ time: new Date().toISOString(), name, path: args.path || '', workspace: config.root, ok: true, ...(value.edits_applied ? { edits: value.edits_applied } : {}) });
-        return { content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: Array.isArray(value) ? { entries: value } : value, isError: false };
+        return { content: [{ type: 'text', text: JSON.stringify(value) }], isError: false };
       } catch (error) {
         record({ time: new Date().toISOString(), name, path: args.path || '', workspace: config.root, ok: false });
         return { isError: true, content: [{ type: 'text', text: error.message }] };

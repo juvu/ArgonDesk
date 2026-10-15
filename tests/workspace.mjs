@@ -28,6 +28,13 @@ check('UTF-8 create/read/exact-edit round trip', () => {
   files.run('edit_file', { ...args, old_text: '原文', new_text: '已编辑' });
   assert.equal(files.run('read_file', args).text, '你好，Gemini\n已编辑');
 });
+check('Create-only writes make parent folders and refuse to overwrite existing content', () => {
+  const target = { ...args, path: 'new/nested/result.svg', mode: 'create', content: '<svg><animate attributeName="opacity" values="0;1" dur="2s"/></svg>' };
+  files.run('write_file', target);
+  assert.equal(fs.readFileSync(path.join(root, target.path), 'utf8'), target.content);
+  assert.throws(() => files.run('write_file', { ...target, content: 'MUST_NOT_REPLACE' }));
+  assert.equal(fs.readFileSync(path.join(root, target.path), 'utf8'), target.content);
+});
 check('Traversal, absolute paths, ADS, device names and trailing aliases denied', () => {
   for (const target of ['../outside.txt', '..\\outside.txt', outside, 'sample.txt:stream', 'CON', 'NUL.txt', 'folder. /escape.txt', 'folder /escape.txt']) {
     assert.throws(() => files.run('write_file', { ...args, path: target, content: 'BAD' }));
@@ -114,6 +121,16 @@ try {
   checks.push({ name: 'Dashboard mutations require CSRF token', passed: true });
   assert.equal((await post('/api/preferences', { language: 'en' })).status, 403);
   assert.equal((await post('/api/preferences', { language: 'invalid' }, state.csrf)).status, 400);
+  assert.equal((await post('/api/preferences', { fileAutoStart: true })).status, 403);
+  assert.equal((await post('/api/preferences', { fileAutoStart: 'true' }, state.csrf)).status, 400);
+  assert.equal((await post('/api/preferences', { language: 'invalid', fileAutoStart: true }, state.csrf)).status, 400);
+  assert.equal((await post('/api/preferences', { fileAutoStart: true }, state.csrf)).status, 200);
+  const startupPreference = await (await fetch(address + '/api/state')).json();
+  assert.equal(startupPreference.fileAutoStart, true);
+  assert.equal(startupPreference.enabled, state.enabled);
+  assert.equal(startupPreference.workspace_id, state.workspace_id);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(stateDir, 'config.json'), 'utf8')).fileAutoStart, true);
+  checks.push({ name: 'Startup preference is opt-in, boolean, CSRF-protected and does not enable the current session', passed: true });
   await post('/api/preferences', { language: 'en' }, state.csrf);
   const translated = await (await fetch(address + '/api/state')).json();
   assert.equal(translated.language, 'en');
@@ -135,6 +152,8 @@ try {
   assert.equal((await fetch(address + '/mcp/wrong-key', { method: 'POST' })).status, 404);
   checks.push({ name: 'MCP capability credential required', passed: true });
   await client.connect(new StreamableHTTPClientTransport(new URL(state.localMcp)));
+  assert.equal(client.getServerVersion().name, 'ArgonDesk');
+  assert.match(client.getInstructions(), /Preserve requested detail, motion and interactivity/);
   const tools = (await client.listTools()).tools;
   assert.deepEqual(tools.map(tool => tool.name).sort(), ['workspace_info', 'list_files', 'read_file', 'write_file', 'edit_file', 'create_directory'].sort());
   checks.push({ name: 'Real SDK handshake and exactly six file tools', passed: true });
@@ -143,7 +162,7 @@ try {
   const infoResult = await client.callTool({ name: 'workspace_info', arguments: {} });
   let info = JSON.parse(infoResult.content[0].text);
   assert.equal(infoResult.isError, false);
-  assert.deepEqual(infoResult.structuredContent, info);
+  assert.equal(infoResult.structuredContent, undefined);
   assert.equal(info.workspace, root);
   await post('/api/preferences', { language: 'zh-CN' }, state.csrf);
   const activePreference = await (await fetch(address + '/api/state')).json();
@@ -156,12 +175,25 @@ try {
   checks.push({ name: 'Real MCP file round trip within selected directory', passed: true });
   const batchResult=await client.callTool({name:'edit_file',arguments:{...params,edits:[{old_text:'REAL',new_text:'BATCH'},{old_text:'中文',new_text:'成功'}]}});
   assert.equal(batchResult.isError,false);
-  assert.equal(batchResult.structuredContent.edits_applied,2);
+  assert.equal(JSON.parse(batchResult.content[0].text).edits_applied,2);
   assert.equal(fs.readFileSync(path.join(root,params.path),'utf8'),'BATCH_MCP_成功');
   checks.push({ name: 'Real MCP schema accepts multiple replacements in a single tool request', passed: true });
   const listing = await client.callTool({ name: 'list_files', arguments: { workspace_id: info.workspace_id, path: '.' } });
-  assert.deepEqual(listing.structuredContent.entries, JSON.parse(listing.content[0].text));
-  checks.push({ name: 'MCP results expose structured data and preserve existing text responses', passed: true });
+  assert.equal(listing.structuredContent, undefined);
+  assert.ok(Array.isArray(JSON.parse(listing.content[0].text)));
+  checks.push({ name: 'MCP results keep one canonical JSON text payload without a duplicate structured copy', passed: true });
+  const beforeCreate = (await (await fetch(address + '/api/state')).json()).history.length;
+  const fresh = JSON.parse((await client.callTool({ name: 'workspace_info', arguments: {} })).content[0].text);
+  const animated = '<svg xmlns="http://www.w3.org/2000/svg"><style>@keyframes strum{to{transform:rotate(12deg)}}.hand{animation:strum .3s infinite alternate}</style><g class="hand"><path d="M1 1L20 20"/></g></svg>';
+  const created = await client.callTool({ name: 'write_file', arguments: { workspace_id: fresh.workspace_id, path: 'art/guitar.svg', content: animated, mode: 'create' } });
+  assert.equal(created.isError, false);
+  assert.equal(fs.readFileSync(path.join(root, 'art/guitar.svg'), 'utf8'), animated);
+  const afterCreate = (await (await fetch(address + '/api/state')).json()).history.slice(beforeCreate);
+  assert.deepEqual(afterCreate.map(item => item.name), ['workspace_info', 'write_file']);
+  checks.push({ name: 'Two real MCP calls can create an animated SVG without listing, reading or losing animation', passed: true });
+  assert.equal((await client.callTool({ name: 'write_file', arguments: { workspace_id: fresh.workspace_id, path: 'art/guitar.svg', content: 'BAD', mode: 'create' } })).isError, true);
+  assert.equal(fs.readFileSync(path.join(root, 'art/guitar.svg'), 'utf8'), animated);
+  checks.push({ name: 'Real MCP create mode rejects collisions and leaves the original bytes intact', passed: true });
   assert.equal((await client.callTool({ name: 'write_file', arguments: { ...params, path: '../outside.txt', content: 'BAD' } })).isError, true);
   assert.equal((await client.callTool({ name: 'write_file', arguments: { ...params, path: 'junction/outside.txt', content: 'BAD' } })).isError, true);
   assert.equal((await client.callTool({ name: 'start_process', arguments: {} })).isError, true);

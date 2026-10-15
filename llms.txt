@@ -10,6 +10,8 @@ Use cases: Gemini web local file access; Gemini website MCP filesystem; browser 
 - [智能体协助安装](docs/AI_SETUP.zh-CN.md)
 - [Networking and provider support](docs/NETWORKING.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Usage, thinking and creative quality](docs/USAGE.md)
+- [额度、思考与创作质量](docs/USAGE.zh-CN.md)
 - [Security and limits](SECURITY.md)
 
 Current scope: Windows x64; six UTF-8 text-file tools; integrated ngrok connection management; English/Simplified Chinese UI; Google write confirmations remain manual. No shell, arbitrary binary editing, browser control or deletion tools. Other tunnel providers are research/roadmap items, not built-in support. The project is an independent MIT-licensed preview.

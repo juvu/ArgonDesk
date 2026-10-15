@@ -1,6 +1,8 @@
 # ArgonDesk — let Gemini Web work in a local folder
 
-[简体中文](README.zh-CN.md) · English · Preview 0.4.1 · [MIT](LICENSE)
+[简体中文](README.zh-CN.md) · English · Preview 0.4.2 · [MIT](LICENSE)
+
+[Download Windows / source packages](https://github.com/nexora-dev9/ArgonDesk/releases) · [Usage, thinking and animation](docs/USAGE.md)
 
 Choose a folder on Windows, connect ArgonDesk as a custom MCP app in the **Gemini website**, and ask Gemini to read, create or edit files there. Use your existing eligible Gemini web account; no Gemini model API key or separate model API billing is required.
 
@@ -16,6 +18,7 @@ ArgonDesk is an independent Windows preview, not an official Google product. Arg
 | [First installation](docs/SETUP.md) | Download or source build, account prerequisites, first native tool call |
 | [Network and tunnel choices](docs/NETWORKING.md) | ngrok, TUN, Cloudflare and other options, current support boundaries |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Allow, app selection, black code blocks, connecting, quotas and scope errors |
+| [Usage and creative quality](docs/USAGE.md) | Fewer unnecessary calls, animated SVGs, thinking settings and two usage limits |
 | [AI-assisted setup](docs/AI_SETUP.md) | A shareable prompt and verifiable instructions for another coding agent |
 | [Security](SECURITY.md) | Folder authority, data flow and credentials |
 | [Contributing](CONTRIBUTING.md) | Development, focused changes and checks |
@@ -27,7 +30,7 @@ ArgonDesk is an independent Windows preview, not an official Google product. Arg
 
 Gemini website → Google's native custom MCP app → your private HTTPS endpoint → ngrok → ArgonDesk on localhost → your selected folder.
 
-The control panel stays at http://127.0.0.1:3008/ and is not forwarded publicly. No browser extension, long Insert prompt or green automation overlay is needed. The web page handles native tool requests and results; ArgonDesk does not automatically type extra prompts into your conversation.
+The control panel stays at http://127.0.0.1:3008/ and is not forwarded publicly. This loopback address means the reader's own PC, running its own copy of ArgonDesk; 3008 is the default port. No browser extension, long Insert prompt or green automation overlay is needed. The web page handles native tool requests and results; ArgonDesk does not automatically type extra prompts into your conversation.
 
 There are three pages:
 - **Workspace:** tunnel status, actual remote tool activity, folder selection, read/edit permission and pause.
@@ -62,7 +65,7 @@ You need access to Google's **custom Connected Apps** feature. Google's current 
 5. Refresh Gemini. Its app details should expose exactly six tools.
 6. In ArgonDesk, choose the folder, select **Read only** or **Read and edit**, then enable file access.
 
-Optionally enable **Connect when ArgonDesk opens**. This reconnects the tunnel on launch; file access still starts paused.
+Optionally enable **Connect when ArgonDesk opens** to restore the tunnel. Separately, **Preferences → Enable file access on startup** opts into enabling the saved folder and permission on every backend start. It is off for new and existing installations until chosen. Turning it on does not enable the current session; a manual pause lasts until restart when this option is on. Missing or replaced roots stay paused.
 
 The URL contains a random capability key. Treat the complete URL as a password. This preview does not implement Google-account-bound OAuth. Token storage uses DPAPI for the current Windows user; do not migrate its ciphertext to another computer.
 
@@ -78,7 +81,7 @@ The previously verified website workflow was **English interface → Task → Ar
 
 **Google currently requires manual confirmation for write actions. ArgonDesk does not remove or auto-click those confirmations.** A complex task may ask more than once. Batch edits can reduce the number of tool calls when the model uses them, but do not remove Google's confirmation requirement.
 
-Switching folders or changing read/edit permission pauses access and rotates the workspace ID. Old requests using the previous ID fail. Restarting pauses access too. The private connection URL stays the same across folder changes, so you do not need to register the app again.
+Switching folders or changing read/edit permission pauses access and rotates the workspace ID. Old requests using the previous ID fail. Restarting also rotates the ID and stays paused unless startup file access is enabled. The private connection URL stays the same across these changes, so you do not need to register the app again.
 
 A black code block containing `function_call_start` or `desktop-commander.read_file` is just text unless another extension actually executes it. Start a new conversation if an old one contains the previous Insert instructions. A successful MCP handshake or tool listing also does not prove a file was read. ArgonDesk distinguishes tunnel reachability from **successful remote tool activity**.
 
@@ -91,7 +94,7 @@ Closing the panel leaves the backend in the Windows tray. Use the power button o
 | workspace_info | Get the selected folder, current workspace ID, permission and pause state |
 | list_files | List up to 500 entries in a directory |
 | read_file | Read 1–1000 lines per request, default 200 |
-| write_file | Create, rewrite or append UTF-8 text |
+| write_file | Create without overwrite (`mode=create`), rewrite or append UTF-8 text; creates missing parent folders |
 | edit_file | Apply a unique replacement, or up to 50 replacements to one file |
 | create_directory | Create a folder within the workspace |
 
@@ -104,6 +107,10 @@ This is a file-tool boundary, not a change to Windows account permissions or a c
 Requested file contents travel through ngrok to Google. The random URL must remain private. Local history stores tool names, workspace paths, timestamps and success/failure, not file contents. Older records may lack a workspace path. Tunnel diagnostics store a short list of event categories and error codes, without raw agent logs or tokens.
 
 ## Fewer requests
+
+In 0.4.2, a simple new artifact can use **workspace_info → write_file(mode=create)**. Create-only writes refuse collisions, so inspecting unrelated files first is unnecessary. Short MCP guidance identifies ArgonDesk as the file connection and asks the model to preserve detail, real animation and interactivity. Successful tool results now return one canonical JSON text payload, without a second structured copy of file contents. Clients should parse `content[0].text`.
+
+A controlled local 24,447-byte read produced 60,917 bytes of tool-result JSON in 0.4.1 and 33,384 in 0.4.2, about 45% less. This measures response bytes, **not Google compute savings**. Model choices, Task reasoning, caching and Google's accounting remain outside ArgonDesk's control. New guidance does not prove improved visual quality; check the artifact. See the [usage and animation guide](docs/USAGE.md).
 
 Version 0.4.1 lets `edit_file` accept an `edits` array. All replacements must match uniquely, in order, before any write occurs. A later mismatch leaves the original file unchanged. The previous `old_text` / `new_text` format still works; do not mix formats.
 

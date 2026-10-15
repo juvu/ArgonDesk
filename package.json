@@ -1,6 +1,6 @@
 {
   "name": "argondesk",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "description": "Local folder-scoped MCP tools and a bilingual Windows workspace for the Gemini website",
   "type": "module",
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node tests/workspace.mjs"
+    "test": "node tests/workspace.mjs && node tests/startup.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",

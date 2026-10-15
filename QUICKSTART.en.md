@@ -1,4 +1,4 @@
-# Daily workflow · 0.4.1
+# Daily workflow · 0.4.2
 
 [简体中文](使用说明.md) · [Full guide](README.md)
 
@@ -8,7 +8,9 @@
 4. Describe what should be done in the current workspace. Review and approve the website's Allow card for writes.
 5. Check Activity and the actual files.
 
-Use the gear button → Preferences to change between English and Simplified Chinese. Changing folders or permissions, and restarting, pauses access. The private MCP URL stays the same across folder changes.
+Use the gear button → Preferences for language and **Enable file access on startup**. This optional setting restores the saved folder and permission on restart; it defaults off. While on, a manual pause lasts for this run. Folder or permission changes still pause immediately. Restarting refreshes the workspace ID, not the private connection URL.
+
+For a new file, ask for one workspace lookup followed by a complete create-only write. If animation is required, explicitly request actual playback. See [usage and quality](docs/USAGE.md).
 
 For initial setup, save your own ngrok development domain and token in Connection, then register the private URL as a custom Gemini app. Optional auto-connect restores the tunnel on launch. No old browser extension, green overlay or long Insert prompt is required.
 

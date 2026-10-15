@@ -6,6 +6,8 @@
 
 Implemented: six scoped text-file tools, read-only/edit selection, pause and workspace IDs, path/link guards, native MCP JSON results, ngrok process management, recovery status, bilingual UI/tray, history and batched replacements.
 
+0.4.2 adds optional startup file access, create-only writes with parent folders, concise model guidance and a single result payload. Isolated tests cover 27 file/MCP checks and seven startup scenarios. A response-size benchmark sends no Gemini messages; it is not a quota or creative-quality experiment. See the [usage guide](USAGE.md) and [actual hosted CI runs](https://github.com/nexora-dev9/ArgonDesk/actions).
+
 Evidence from the current Windows installation includes real MCP fixture tests, a public-endpoint ping/tool listing, an earlier genuine Gemini approved write/read-back, and human confirmation of the folder picker. Local package, installer and UI checks are separate from hosted CI and another-PC testing.
 
 ## Known limits

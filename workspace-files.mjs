@@ -92,10 +92,12 @@ export class WorkspaceFiles {
       editsApplied = edits.length;
     }
     if (typeof content !== 'string' || Buffer.byteLength(content) > MAX_BYTES) throw new Error('写入内容必须为不超过 2 MiB 的文本。');
-    if (name === 'write_file' && args.mode && !['rewrite', 'append'].includes(args.mode)) throw new Error('写入模式无效。');
+    if (name === 'write_file' && args.mode && !['create', 'rewrite', 'append'].includes(args.mode)) throw new Error('写入模式无效。');
     const append = name === 'write_file' && args.mode === 'append';
+    const create = name === 'write_file' && args.mode === 'create';
     if (append && fs.existsSync(target) && fs.statSync(target).size + Buffer.byteLength(content) > MAX_BYTES) throw new Error('追加后文件将超过 2 MiB。');
-    fs.writeFileSync(target, content, { encoding: 'utf8', flag: append ? 'a' : 'w' });
+    if (name === 'write_file') fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, content, { encoding: 'utf8', flag: create ? 'wx' : append ? 'a' : 'w' });
     return { path: args.path, bytes: fs.statSync(target).size, written: true, ...(editsApplied ? { edits_applied: editsApplied } : {}) };
   }
 }

@@ -1,5 +1,19 @@
 # Changelog / 更新记录
 
+## 0.4.2 — Leaner file tasks / 减少多余调用
+
+- Added opt-in startup file access, saved permissions, fresh startup IDs and fail-closed root validation.
+- Added create-only writes and parent-folder creation, enabling a two-call new-file path without unrelated directory inspection.
+- Identified the MCP server as ArgonDesk and added concise guidance preserving detail, actual animation and interactivity.
+- Removed duplicate structured copies from successful results; canonical JSON text remains in content[0].text.
+- Added bilingual usage/quality guidance and startup regression checks. Payload reduction is measured locally; Google quota and creative quality improvements are not claimed as verified.
+
+- 新增可选的启动自动启用、沿用保存权限、重启更新编号及目录失效时暂停。
+- 增加不覆盖的新建模式和父目录创建，简单任务可以两次调用落盘。
+- MCP 名称与软件统一，指导模型保留细节、真实动画和交互。
+- 去掉成功结果中重复的 structuredContent 正文，保留 content[0].text 的 JSON。
+- 增加双语额度/质量说明与启动回归检查。响应体积的本地改善不等于已证明节省 Google 额度或提高创作质量。
+
 ## 0.4.1 — Open-source preview / 开源预览
 
 - Formalized the ArgonDesk name and MIT license.
